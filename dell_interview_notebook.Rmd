@@ -1,0 +1,149 @@
+---
+title: "Spyros' Demo for Dell Interview"
+output: html_notebook
+---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
+
+<!-- This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code.  -->
+
+<!-- Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*.  -->
+
+<!-- First step: load libraries, set working directory and read the dataset from csv file -->
+
+```{r include=FALSE}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(xtable)
+setwd("C://Users//sprot//Documents//Repos//dellDemo")
+getwd()
+laptopsDf1 = read.csv('laptops.csv')
+```
+## Case 1: some quick filtering
+
+Print a few rows to see if the data was imported correctly
+
+```{r echo=FALSE}
+laptopsDf1 %>%
+  filter(X <= 10) %>% kable(format = 'simple')
+```
+
+
+I want to see laptops that fulfill all of the requirements below:
+
+1) at least 16GB of RAM
+
+2) have SSD
+
+3) Lighter than 2kg
+
+4) under 1350 Euros:
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+evenBetterDeal = highRamLowPrice %>%
+  mutate(weightKg =  as.numeric(gsub("[^0-9.]", "", Weight))) %>% 
+  filter(grepl('SSD', Memory),
+         Weight < 2)
+
+evenBetterDeal %>%
+  select(Company, Product, Ram, Memory, Weight, Price_euros) %>%
+  kable(format = 'simple')
+```
+
+
+
+## Case 2: A simple grouping by marketing channel
+
+This is what the raw data looks like:
+
+```{r}
+leadsDf1 = read.csv('olist_marketing_qualified_leads_dataset.csv')
+
+kable(head(leadsDf1,10), format = 'simple')
+
+leadsCountByOrigin = leadsDf1 %>%
+  group_by(origin) %>%
+  count()
+```
+
+Now, the number of leads by itself do not tell us much, unless we have a cost estimate for each of these marketing channels. Let's assume some spending for each
+
+```{r message=FALSE, warning=FALSE}
+leadsCountByOrigin2 = leadsCountByOrigin %>%
+  mutate(total_cost = runif(1, 9999, 49999),
+         leads_per_thousand_dollars = n*1000 / total_cost) %>%
+  filter(origin != '') 
+
+kable(leadsCountByOrigin2, format = 'simple')
+```
+
+
+## Case 3: Who should we target? Who is more likely to spend more?
+
+This is what the raw data looks like:
+
+```{r warning=FALSE}
+retailMarketingDf1 = read.csv('retailMarketingDI.csv')
+kable(head(retailMarketingDf1,10), format = 'simple')
+
+```
+
+Let's convert categorical data into numeric, so we can include them when checking correlations
+
+```{r message=FALSE, warning=FALSE}
+retailMarketingLevels = retailMarketingDf1 %>% 
+  mutate(
+    Age = case_when(
+      tolower(Age)=='young'~ 1,
+      tolower(Age)=='middle'~ 2,
+      tolower(Age)=='old'~ 3
+      ),
+    Gender = case_when(
+      tolower(Gender) == 'male' ~ 0,
+      tolower(Gender) == 'female' ~ 1
+    ),
+    OwnHome = case_when(
+      tolower(OwnHome) == 'rent' ~ 0,
+      tolower(OwnHome) == 'own' ~ 1
+    ),
+      Married = case_when(
+      tolower(Married) == 'married' ~ 1,
+      TRUE ~ 0
+    ),
+        Location = case_when(
+      tolower(Location) == 'close' ~ 0,
+      tolower(Location) == 'far' ~ 1
+    ),
+        History = case_when(
+      tolower(History) == 'low' ~ 1,
+      tolower(History) == 'medium' ~ 2,
+      tolower(History) == 'high' ~ 3
+    )
+  )
+```
+
+Now that we prepared the data, let's create a correlation plot:
+
+```{r}
+myCorrelations = cor(retailMarketingLevels, use="complete.obs")
+
+corrplot::corrplot(myCorrelations)
+```
+
+We are trying to predict who is more likely to spend more:
+
+The strongest positive correlation (predictor for spending more) are the size of Salary and the History with the company.
+Some negative corrlatation can be found with the number of children: people with more children tend to spend less.
+Women tend to spend a little less than men on our products, but the correlation is not very strong so we should not take that for granted, more of a possibility to re-test in the future with more data.
+Married  people also seem to spend more than single.
+
+So, our target would be: Higher income married couples.
+We should make sure to engage our existing customers (have history with us) as they tend to spend more on average than new customers.
+
